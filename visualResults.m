@@ -3,15 +3,15 @@ clear all
 clc
 
 imageSize = [32 32 3];
-datadir = 'D:\RnD\Frameworks\Datasets';
+datadir = 'D:\Datasets';
 [XTrain,YTrain,XValidation,YValidation,categories] = loadCIFARData(datadir);
 
-Options.snpDensity = 0.01;
+Options.snpDensity = 0.3;
 Options.gaussMean = 0;
-Options.gaussVar = 50/(65025); %Division by 65025(=255*255) is necessary because imnoise by default works on [0 1] scale
+Options.gaussVar = 250/(65025); %Division by 65025(=255*255) is necessary because imnoise by default works on [0 1] scale
 Options.med_filt_kernel = [3,3];
 Options.wienerFiltKernel = [3,3];
-Options.nlmFiltDoS = 3;
+Options.nlmFiltDoS = 50;
 Options.bilatFiltDoS = 1100;
 Options.bilatFiltVar = 1.1;
 Options.filterType = 6; %[0-No Filter, 1-Bilateral, 2- NLM, 3-Wiener, 4-Median, 5-DnCNN, 6-Switching]
@@ -25,15 +25,32 @@ disp(' ');
 times = zeros(7,1);
 imgMetrics = zeros(8,2);
 
+listing = dir('D:\Datasets\UCS_SIPI\few');
+s(4) = length(listing);
+% return
+
 % s(4) = 10;
-for i=1:s(4)
+step = 1;
+for i=3:step:s(4)
     i*100/s(4)
 
-    img = XValidation(:,:,:,i);
-%     img = imread('untitled.png');
+%     img = XValidation(:,:,:,i);
+
+    fn = [listing(i).folder, '\', listing(i).name];
+    img = imread(fn);
+%    img = imresize(img,[256 256]);
+%     size(img)
+    [rr,cc,nn] = size(img);
+    if(nn==1)
+        img1 = zeros(rr,cc,3);
+        img1(:,:,1) = img;
+        img1(:,:,2) = img;
+        img1(:,:,3) = img;
+        img = uint8(img1);
+    end
 %     subplot(1,9,1)
-%     imshow(img)
-%     figure
+    imshow(img)
+    figure
 
     imgNoisy = imnoise(img,'salt & pepper', Options.snpDensity);
     imgNoisy = imnoise(imgNoisy,'gaussian',Options.gaussMean,Options.gaussVar);
@@ -42,34 +59,35 @@ for i=1:s(4)
     imgMetrics(1,2) = imgMetrics(1,2) + psnrV;
 
 %     subplot(1,9,2)
-%     imshow(imgNoisy)
-% figure
-% tic
-%     imgNoisy1(:,:,1) =  imbilatfilt(imgNoisy(:,:,1),Options.bilatFiltDoS,Options.bilatFiltVar);
-%     imgNoisy1(:,:,2) =  imbilatfilt(imgNoisy(:,:,2),Options.bilatFiltDoS,Options.bilatFiltVar);
-%     imgNoisy1(:,:,3) =  imbilatfilt(imgNoisy(:,:,3),Options.bilatFiltDoS,Options.bilatFiltVar);
-% 
-%     [ssimV, psnrV] = calcImgMetrics(imgNoisy1,img);
-%     imgMetrics(2,1) = imgMetrics(2,1) + ssimV;
-%     imgMetrics(2,2) = imgMetrics(2,2) + psnrV;
-% 
-%     times(1) = times(1) + toc;
+    imshow(imgNoisy)
+figure
+tic
+    imgNoisy1(:,:,1) =  imbilatfilt(imgNoisy(:,:,1),Options.bilatFiltDoS,Options.bilatFiltVar);
+    imgNoisy1(:,:,2) =  imbilatfilt(imgNoisy(:,:,2),Options.bilatFiltDoS,Options.bilatFiltVar);
+    imgNoisy1(:,:,3) =  imbilatfilt(imgNoisy(:,:,3),Options.bilatFiltDoS,Options.bilatFiltVar);
+
+    [ssimV, psnrV] = calcImgMetrics(imgNoisy1,img);
+    imgMetrics(2,1) = imgMetrics(2,1) + ssimV;
+    imgMetrics(2,2) = imgMetrics(2,2) + psnrV;
+
+    times(1) = times(1) + toc;
 %     subplot(1,9,3)
-%     imshow(imgNoisy1)
-%     figure
+    imshow(imgNoisy1)
+    figure
 % 
-% tic
-%     imgNoisy2(:,:,1) = imnlmfilt(imgNoisy(:,:,1),'DegreeOfSmoothing',Options.nlmFiltDoS);
-%     imgNoisy2(:,:,2) = imnlmfilt(imgNoisy(:,:,2),'DegreeOfSmoothing',Options.nlmFiltDoS);
-%     imgNoisy2(:,:,3) = imnlmfilt(imgNoisy(:,:,3),'DegreeOfSmoothing',Options.nlmFiltDoS);
-% 
-%     [ssimV, psnrV] = calcImgMetrics(imgNoisy2,img);
-%     imgMetrics(3,1) = imgMetrics(3,1) + ssimV;
-%     imgMetrics(3,2) = imgMetrics(3,2) + psnrV;
+tic
+imgNoisy2 = imgNoisy;
+    imgNoisy2(:,:,1) = imnlmfilt(imgNoisy(:,:,1),'DegreeOfSmoothing',Options.nlmFiltDoS,'SearchWindowSize',21,'ComparisonWindowSize',7);
+    imgNoisy2(:,:,2) = imnlmfilt(imgNoisy(:,:,2),'DegreeOfSmoothing',Options.nlmFiltDoS,'SearchWindowSize',21,'ComparisonWindowSize',7);
+    imgNoisy2(:,:,3) = imnlmfilt(imgNoisy(:,:,3),'DegreeOfSmoothing',Options.nlmFiltDoS,'SearchWindowSize',21,'ComparisonWindowSize',7);
+
+    [ssimV, psnrV] = calcImgMetrics(imgNoisy2,img);
+    imgMetrics(3,1) = imgMetrics(3,1) + ssimV;
+    imgMetrics(3,2) = imgMetrics(3,2) + psnrV;
 %     
-% %     subplot(1,9,4)
-% %     imshow(imgNoisy2)
-% %     figure
+%     subplot(1,9,4)
+    imshow(imgNoisy2)
+    figure
 % 
 %     times(2) = times(2) + toc;
 % 
@@ -101,30 +119,32 @@ for i=1:s(4)
 % 
 %     times(4) = times(4) + toc;
 
+%     DnCNN
+%     imgNoisy5 = imresize(imgNoisy,[50 50]);
+    imgNoisy5 = imgNoisy;
 %     
-    imgNoisy5 = imresize(imgNoisy,[50 50]);
     tic
     imgNoisy5(:,:,1) = denoiseImage(imgNoisy5(:,:,1),net_denoise);
     imgNoisy5(:,:,2) = denoiseImage(imgNoisy5(:,:,2),net_denoise);
     imgNoisy5(:,:,3) = denoiseImage(imgNoisy5(:,:,3),net_denoise);
     times(5) = times(5) + toc;
-    imgNoisy5 = imresize(imgNoisy5,[32 32]);
-% 
+%     imgNoisy5 = imresize(imgNoisy5,[32 32]);
+
     [ssimV, psnrV] = calcImgMetrics(imgNoisy5,img);
     imgMetrics(6,1) = imgMetrics(6,1) + ssimV;
     imgMetrics(6,2) = imgMetrics(6,2) + psnrV;
-    
-    %     subplot(1,9,7)
-% figure
-%     imshow(imgNoisy5)
+%     
+%         subplot(1,9,7)
+% 
+    imshow(imgNoisy5)
+    figure
 %     
 tic
     imgNoisy6 = SWFilter1(imgNoisy);
     times(6) = times(6) + toc;
 %     subplot(1,9,8)
-%     imshow(imgNoisy6)
-%     figure
-%     
+    imshow(imgNoisy6)  
+    figure
     [ssimV, psnrV] = calcImgMetrics(imgNoisy6,img);
     imgMetrics(7,1) = imgMetrics(7,1) + ssimV;
     imgMetrics(7,2) = imgMetrics(7,2) + psnrV;
@@ -137,16 +157,16 @@ tic
 
     times(7) = times(7) + toc;
 %     subplot(1,9,9)
-%     imshow(imgNoisy7)
+    imshow(imgNoisy7)
     
 %     title(YValidation(i))
     
-%     pause
+    pause
 %     drawnow
 end
-times/s(4)
+step*times/s(4)
 
-imgMetrics/s(4)
+step*imgMetrics/s(4)
 
 
 function [ssimV, psnrV] = calcImgMetrics(noisy,img)
